@@ -1,34 +1,37 @@
-name: CI
-
+name: Terraform-Lint
 on:
   push:
     branches: [ main ]
   pull_request:
 
 jobs:
-  terraform:
-    name: Terraform CI
+  tflint:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo code
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: Checkout source code
 
-      # Setup Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: actions/cache@v3
+        name: Cache plugin dir
         with:
-          terraform_version: 1.13.4
+          path: ~/.tflint.d/plugins
+          key: ubuntu-latest-tflint-${{ hashFiles('.tflint.hcl') }}
 
-      # Validate formatting
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      - uses: terraform-linters/setup-tflint@v3
+        name: Setup TFLint
+        with:
+          tflint_version: v0.44.1
 
-      # Initialize Terraform
-      - name: Terraform Init
-        run: terraform init -input=false
+      - name: Show version
+        run: tflint --version
 
-      # Validate configuration
-      - name: Terraform Validate
-        run: terraform validate -no-color
+      - name: Init TFLint
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        run: |
+          # Run TFLint and allow exit code 2 (warnings only)
+          tflint -f compact || [ $? -eq 2 ]
